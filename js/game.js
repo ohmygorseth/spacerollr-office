@@ -110,7 +110,7 @@ document.addEventListener('keydown',e=>{
   }
   K[e.key]=1;
   if([' ','ArrowLeft','ArrowRight','ArrowUp'].includes(e.key))e.preventDefault();
-  if(state==='dead'&&e.key==='Enter')go();if(state==='levelcomplete'&&e.key==='Enter'){state='start';menuState='main';currentLevel=0;}
+  if(state==='dead'&&!enteringName&&e.key==='Enter')go();if(state==='levelcomplete'&&e.key==='Enter'){state='start';menuState='main';currentLevel=0;}
 });
 document.addEventListener('keyup',e=>K[e.key]=0);
 document.addEventListener('keydown',e=>{
@@ -167,7 +167,7 @@ cv.addEventListener('wheel',(e)=>{
 
 
 function handleClick(e){
-  if(state==='dead'){go();return;}
+  if(state==='dead'&&!enteringName){go();return;}
   if(state==='levelcomplete'){state='start';menuState='main';return;}
   if(state==='start'){
     const rect=cv.getBoundingClientRect();
@@ -216,7 +216,7 @@ function update(t){const gp=readGamepad();
     }
     if(state!=='play'){if((state==='dead'||state==='start')&&(gp.start||gp.jump))go();return;}
   }
-  if(state!=='play'){if((state==='dead'||state==='start')&&(gp.start||gp.jump))go();return;}const dt=Math.min((t-prevT)/1000,.05);prevT=t;camZ+=spd*dt;score=(scoreOffset+Math.floor(camZ))*12|0;const totalTiles=scoreOffset+Math.floor(camZ);if(gameMode==='test'){const tilesAfter=Math.max(0,totalTiles-100);const baseSpd=Math.min(CONFIG.MAX_SPEED,CONFIG.BASE_SPEED+totalTiles*CONFIG.SPEED_GROWTH);spd=Math.min(25,baseSpd+Math.floor(tilesAfter/5));}else{const tilesAfter=Math.max(0,totalTiles-1827);const baseSpd=Math.min(CONFIG.MAX_SPEED,CONFIG.BASE_SPEED+totalTiles*CONFIG.SPEED_GROWTH);spd=Math.min(25,baseSpd+Math.floor(tilesAfter/5));}const curSpeedLevel=Math.floor(spd);
+  if(state!=='play'){if((state==='dead'||state==='start')&&!enteringName&&(gp.start||gp.jump))go();return;}const dt=Math.min((t-prevT)/1000,.05);prevT=t;camZ+=spd*dt;score=(scoreOffset+Math.floor(camZ))*12|0;const totalTiles=scoreOffset+Math.floor(camZ);if(gameMode==='test'){const tilesAfter=Math.max(0,totalTiles-100);const baseSpd=Math.min(CONFIG.MAX_SPEED,CONFIG.BASE_SPEED+totalTiles*CONFIG.SPEED_GROWTH);spd=Math.min(25,baseSpd+Math.floor(tilesAfter/5));}else{const tilesAfter=Math.max(0,totalTiles-1827);const baseSpd=Math.min(CONFIG.MAX_SPEED,CONFIG.BASE_SPEED+totalTiles*CONFIG.SPEED_GROWTH);spd=Math.min(25,baseSpd+Math.floor(tilesAfter/5));}const curSpeedLevel=Math.floor(spd);
 if(curSpeedLevel>lastSpeedLevel){lastSpeedLevel=curSpeedLevel;speedNotif=3;}
 if(speedNotif>0)speedNotif-=dt;const left=K['ArrowLeft']||tL||gp.left,right=K['ArrowRight']||tR||gp.right,jump=K[' ']||tJ||gp.jump;pvx+=((right?CONFIG.LATERAL_SPEED:left?-CONFIG.LATERAL_SPEED:0)-pvx)*CONFIG.LATERAL_DRAG*dt;px=Math.max(-THW+.12,Math.min(THW-.12,px+pvx*dt));rot+=spd*dt*(1/BR)*8+pvx*3*dt;if(jump&&jy>=0){jvy=CONFIG.JUMP_VY;playJump();jy=-1;}jvy+=CONFIG.GRAVITY*dt;jy+=jvy*dt;if(jy>0){jy=0;jvy=0;}const row=getRow(camZ+PZ);
 const ballW=0.15;

@@ -28,6 +28,7 @@ let camZ,px,pvx,jy,jvy,spd,score,state,hi=0,pts=[],rot=0,currentLevel=0,gameMode
 const OFFICE_NAMES=['Vegar','Lars','Kristian E','Kristian B','Simeon','Ida','Felix','Daniel','Eyerusalem','Tora','Ragnar K','Einar','Kjetil','Annet'];
 let nameInput='',enteringName=false,gpLetterIdx=0,gpLastPress=0,gpLastDir=0;
 let skinMenuIdx=0;
+let mainMenuIdx=0; // 0=PLAY, 1=VELG SKIN
 let hsScrollIdx=0;
 let gpCursor={x:W/2,y:H/2,visible:false};
 
@@ -299,32 +300,36 @@ function update(t){const gp=readGamepad();
     }
     if(state!=='play'){if((state==='dead'||state==='start')&&gp.start)go();return;}
   }
-  // Virtual cursor + HS scroll for all non-play states
+  // Gamepad menu navigation
   if(state!=='play'&&state!=='enter_name'){
     const now3=Date.now();
     const pads3=navigator.getGamepads?navigator.getGamepads():[];
     for(const p of pads3){if(!p)continue;
-      // Right stick moves cursor
-      const rx=p.axes[2]||0,ry=p.axes[3]||0;
-      if(Math.abs(rx)>0.1||Math.abs(ry)>0.1){
-        gpCursor.visible=true;
-        gpCursor.x=Math.max(0,Math.min(W,gpCursor.x+rx*12));
-        gpCursor.y=Math.max(0,Math.min(H,gpCursor.y+ry*12));
-      }
-      // X button = click at cursor
-      if(gpCursor.visible&&p.buttons[0]?.pressed&&now3-gpLastPress>300){
-        gpLastPress=now3;handleClickAt(gpCursor.x,gpCursor.y);
-      }
-      // D-pad up/down scrolls HS list (only on main menu)
+      const du3=p.buttons[12]?.pressed||p.axes[1]<-0.3;
+      const dd3=p.buttons[13]?.pressed||p.axes[1]>0.3;
+      const btnX3=p.buttons[0]?.pressed;
+      const circle3=p.buttons[1]?.pressed;
+      const options3=p.buttons[9]?.pressed;
+
+      // Main menu: d-pad up/down navigates, X selects, Options=play
       if(menuState==='main'){
-        const du3=p.buttons[12]?.pressed;const dd3=p.buttons[13]?.pressed;
         if((du3||dd3)&&now3-gpLastDir>150){gpLastDir=now3;
+          mainMenuIdx=(mainMenuIdx+(dd3?1:-1)+2)%2;
+        }
+        if(btnX3&&now3-gpLastPress>300){gpLastPress=now3;
+          if(mainMenuIdx===0)startMainMode();
+          else if(mainMenuIdx===1){skinMenuIdx=selectedSkin;menuState='skinselect';}
+        }
+        if(options3&&now3-gpLastPress>300){gpLastPress=now3;startMainMode();}
+        // HS scroll with left stick when not on a button? Use R-stick or shoulder
+        const hsU=p.buttons[4]?.pressed;const hsD=p.buttons[5]?.pressed;
+        if((hsU||hsD)&&now3-gpLastDir>120){gpLastDir=now3;
           const hs=loadHS();
-          hsScrollIdx=Math.max(0,Math.min(hsScrollIdx+(dd3?1:-1),Math.max(0,hs.length-HS_VISIBLE)));
+          hsScrollIdx=Math.max(0,Math.min(hsScrollIdx+(hsD?1:-1),Math.max(0,hs.length-HS_VISIBLE)));
         }
       }
+
       // Circle = go back everywhere
-      const circle3=p.buttons[1]?.pressed;
       if(circle3&&now3-gpLastPress>300){gpLastPress=now3;
         if(menuState==='skinselect'||menuState==='levelselect'){menuState='main';}
         else if(state==='dead'||state==='levelcomplete'){stopMusic();state='start';menuState='main';currentLevel=0;}
@@ -349,7 +354,7 @@ function update(t){const gp=readGamepad();
         else if(dd)skinMenuIdx=Math.min(SKINS.length-1,skinMenuIdx+cols);
         else if(du)skinMenuIdx=Math.max(0,skinMenuIdx-cols);
       }
-      if(confirm&&now2-gpLastPress>300){gpLastPress=now2;selectedSkin=skinMenuIdx;saveSkin(skinMenuIdx);menuState='main';}
+      if((confirm||p.buttons[0]?.pressed)&&now2-gpLastPress>300){gpLastPress=now2;selectedSkin=skinMenuIdx;saveSkin(skinMenuIdx);menuState='main';}
       if(back&&now2-gpLastPress>300){gpLastPress=now2;menuState='main';}
       break;
     }
@@ -764,8 +769,12 @@ function drawStartScreen(){
   cx.fillStyle='rgba(255,255,255,.6)';cx.fillText('= JUMP',divX+38,ctrlY2);
   cx.textAlign='center';
   const pw=260,ph=90,px2=cx0-pw/2,py2=H*0.28;
-  drawNeonBtn(cx0-110,py2+20,220,56,'▶  PLAY GAME','#00ffff');
-  drawNeonBtn(cx0-110,py2+84,220,36,'🎨  VELG SKIN','#aa00ff');
+  const playCol=mainMenuIdx===0?'#ffffff':'#00ffff';
+  const skinCol=mainMenuIdx===1?'#ffffff':'#aa00ff';
+  if(mainMenuIdx===0){cx.fillStyle='rgba(0,255,255,0.15)';cx.fillRect(cx0-110,py2+20,220,56);}
+  if(mainMenuIdx===1){cx.fillStyle='rgba(170,0,255,0.15)';cx.fillRect(cx0-110,py2+84,220,36);}
+  drawNeonBtn(cx0-110,py2+20,220,56,'▶  PLAY GAME',playCol);
+  drawNeonBtn(cx0-110,py2+84,220,36,'🎨  VELG SKIN',skinCol);
   drawHighscoreList(cx0,py2+134);
   cx.textAlign='left';
 }
@@ -873,16 +882,7 @@ function loop(t){
       if(menuState==='main')drawStartScreen();
       else if(menuState==='levelselect')drawLevelSelect();
       else if(menuState==='skinselect')drawSkinSelect();
-      // Draw gamepad cursor on top of everything
-      if(gpCursor.visible){
-        const cx0=gpCursor.x,cy0=gpCursor.y,r=10;
-        cx.save();
-        cx.strokeStyle='rgba(255,255,255,0.9)';cx.lineWidth=1.5;
-        cx.beginPath();cx.moveTo(cx0-r,cy0);cx.lineTo(cx0+r,cy0);cx.stroke();
-        cx.beginPath();cx.moveTo(cx0,cy0-r);cx.lineTo(cx0,cy0+r);cx.stroke();
-        cx.beginPath();cx.arc(cx0,cy0,4,0,Math.PI*2);cx.fillStyle='rgba(255,255,255,0.9)';cx.fill();
-        cx.restore();
-      }
+
     } else {
       drawBg();drawTrack();drawParticles();drawBall();drawHUD();
       if(state==='dead')drawOverlay('GAME OVER',gameMode==='select'?'':'Score: '+score,'');

@@ -21,8 +21,8 @@ function saveProgress(p){try{localStorage.setItem('sr_progress',JSON.stringify(p
 function completeLevel(n){const p=loadProgress();if(!p.completed.includes(n))p.completed.push(n);p.unlocked=Math.max(p.unlocked,n+1);saveProgress(p);}
 function loadHS(){try{return JSON.parse(localStorage.getItem('ballzy_hs'))||[];}catch(e){return[];}}
 function saveHS(hs){try{localStorage.setItem('ballzy_hs',JSON.stringify(hs));}catch(e){}}
-function isHighscore(s){const hs=loadHS();return hs.length<5||s>hs[hs.length-1].score;}
-function addHS(name,s){const hs=loadHS();hs.push({name:name.slice(0,12),score:s});hs.sort((a,b)=>b.score-a.score);hs.splice(10);saveHS(hs);if(window.fbSubmitScore)window.fbSubmitScore(name.slice(0,12),s);}
+function isHighscore(s){const hs=loadHS();return hs.length<20||s>hs[hs.length-1].score;}
+function addHS(name,s){const hs=loadHS();hs.push({name:name.slice(0,12),score:s});hs.sort((a,b)=>b.score-a.score);hs.splice(20);saveHS(hs);if(window.fbSubmitScore)window.fbSubmitScore(name.slice(0,12),s);}
 
 let camZ,px,pvx,jy,jvy,spd,score,state,hi=0,pts=[],rot=0,currentLevel=0,gameMode='main',menuState='main',scoreOffset=0;
 const OFFICE_NAMES=['Vegar','Lars','Kristian E','Kristian B','Simeon','Ida','Felix','Daniel','Eyerusalem','Tora','Ragnar K','Einar','Kjetil','Annet'];
@@ -195,8 +195,12 @@ function update(t){const gp=readGamepad();
       const btnTriangle=p.buttons[3]?.pressed; // Triangle = save
       const btnStart=p.buttons[9]?.pressed; // Start = save
 
-      const goDown=axis>0.3||dpad_right;
-      const goUp=axis<-0.3||dpad_left;
+      const dpad_up=p.buttons[12]?.pressed;
+      const dpad_down=p.buttons[13]?.pressed;
+      const stickDown=p.axes[1]>0.3;
+      const stickUp=p.axes[1]<-0.3;
+      const goDown=stickDown||dpad_down||dpad_right;
+      const goUp=stickUp||dpad_up||dpad_left;
       if(typingCustomName){
         // Letter picker for custom name
         if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)gpLetterIdx=(gpLetterIdx+1)%26;else gpLetterIdx=(gpLetterIdx+25)%26;}
@@ -206,7 +210,7 @@ function update(t){const gp=readGamepad();
       } else {
         // Navigate name list
         if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)namePickerIdx=(namePickerIdx+1)%OFFICE_NAMES.length;else namePickerIdx=(namePickerIdx-1+OFFICE_NAMES.length)%OFFICE_NAMES.length;}
-        if((btnX||btnStart)&&now-gpLastPress>300){gpLastPress=now;if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';gpLetterIdx=0;}else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state='dead';}}
+        if(btnStart&&now-gpLastPress>300){gpLastPress=now;if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';gpLetterIdx=0;}else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state='dead';}}
       }
       break;
     }
@@ -331,7 +335,7 @@ function getGlobalScores(){return[];}
 let drawHighscoreY=0;
 function drawHighscoreList(x,y){drawHighscoreY=y;
   const hs=loadHS();
-  const pw=320,ph=360;
+  const pw=320,ph=630;
   const px2=x-pw/2;
   const rowH=30;
   drawPanel(px2,y,pw,ph,'#ff00ff');
@@ -343,7 +347,7 @@ function drawHighscoreList(x,y){drawHighscoreY=y;
     cx.fillStyle='rgba(255,255,255,.3)';cx.font='12px Share Tech Mono, monospace';
     cx.fillText('Ingen scores ennå',x,y+50);
   } else {
-    hs.slice(0,10).forEach((e,i)=>{
+    hs.slice(0,20).forEach((e,i)=>{
       const ey=y+36+i*rowH;
       cx.fillStyle=i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'rgba(255,255,255,.65)';
       cx.font=(i<3?'bold ':'')+'13px Share Tech Mono, monospace';

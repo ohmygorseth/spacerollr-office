@@ -25,7 +25,9 @@ function isHighscore(s){const hs=loadHS();return hs.length<5||s>hs[hs.length-1].
 function addHS(name,s){const hs=loadHS();hs.push({name:name.slice(0,12),score:s});hs.sort((a,b)=>b.score-a.score);hs.splice(10);saveHS(hs);if(window.fbSubmitScore)window.fbSubmitScore(name.slice(0,12),s);}
 
 let camZ,px,pvx,jy,jvy,spd,score,state,hi=0,pts=[],rot=0,currentLevel=0,gameMode='main',menuState='main',scoreOffset=0;
+const OFFICE_NAMES=['Vegar','Lars','Kristian E','Kristian B','Simeon','Ida','Felix','Daniel','Eyerusalem','Tora','Ragnar K','Einar','Kjetil','Annet'];
 let nameInput='',enteringName=false,gpLetterIdx=0,gpLastPress=0,gpLastDir=0;
+let namePickerIdx=0,typingCustomName=false;
 
 function reset(){camZ=0;px=0;pvx=0;jy=0;jvy=0;spd=CONFIG.BASE_SPEED;score=0;pts=[];rot=0;track=[];tBase=0;growTrack(0);state='play';}
 function die(){
@@ -91,9 +93,19 @@ cv.addEventListener('touchend',e=>{
 document.addEventListener('keydown',e=>{
   if(enteringName){
     e.preventDefault();
-    if(e.key==='Enter'&&nameInput.length>0){addHS(nameInput,score);enteringName=false;state=camZ+PZ>=currentLevelData().length?'levelcomplete':'dead';}
-    else if(e.key==='Backspace'){nameInput=nameInput.slice(0,-1);}
-    else if(e.key.length===1&&nameInput.length<12){nameInput+=e.key;}
+    if(typingCustomName){
+      if(e.key==='Enter'&&nameInput.length>0){addHS(nameInput,score);enteringName=false;typingCustomName=false;state=camZ+PZ>=currentLevelData().length?'levelcomplete':'dead';}
+      else if(e.key==='Backspace'){nameInput=nameInput.slice(0,-1);}
+      else if(e.key==='Escape'){typingCustomName=false;nameInput='';}
+      else if(e.key.length===1&&nameInput.length<12){nameInput+=e.key.toUpperCase();}
+    } else {
+      if(e.key==='ArrowUp'||e.key==='ArrowLeft'){namePickerIdx=(namePickerIdx-1+OFFICE_NAMES.length)%OFFICE_NAMES.length;}
+      else if(e.key==='ArrowDown'||e.key==='ArrowRight'){namePickerIdx=(namePickerIdx+1)%OFFICE_NAMES.length;}
+      else if(e.key==='Enter'){
+        if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';}
+        else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state=camZ+PZ>=currentLevelData().length?'levelcomplete':'dead';}
+      }
+    }
     return;
   }
   K[e.key]=1;
@@ -183,20 +195,19 @@ function update(t){const gp=readGamepad();
       const btnTriangle=p.buttons[3]?.pressed; // Triangle = save
       const btnStart=p.buttons[9]?.pressed; // Start = save
 
-      // Navigate letters with stick or dpad
-      const goRight=axis>0.3||dpad_right;
-      const goLeft=axis<-0.3||dpad_left;
-      if((goRight||goLeft)&&now-gpLastDir>150){
-        gpLastDir=now;
-        if(goRight)gpLetterIdx=(gpLetterIdx+1)%26;
-        else gpLetterIdx=(gpLetterIdx+25)%26;
+      const goDown=axis>0.3||dpad_right;
+      const goUp=axis<-0.3||dpad_left;
+      if(typingCustomName){
+        // Letter picker for custom name
+        if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)gpLetterIdx=(gpLetterIdx+1)%26;else gpLetterIdx=(gpLetterIdx+25)%26;}
+        if(btnX&&now-gpLastPress>300){gpLastPress=now;if(nameInput.length<12)nameInput+=String.fromCharCode(65+gpLetterIdx);}
+        if(btnCircle&&now-gpLastPress>300){gpLastPress=now;nameInput=nameInput.slice(0,-1);}
+        if((btnTriangle||btnStart)&&nameInput.length>0&&now-gpLastPress>300){gpLastPress=now;addHS(nameInput,score);enteringName=false;typingCustomName=false;state='dead';}
+      } else {
+        // Navigate name list
+        if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)namePickerIdx=(namePickerIdx+1)%OFFICE_NAMES.length;else namePickerIdx=(namePickerIdx-1+OFFICE_NAMES.length)%OFFICE_NAMES.length;}
+        if((btnX||btnStart)&&now-gpLastPress>300){gpLastPress=now;if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';gpLetterIdx=0;}else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state='dead';}}
       }
-      // Add letter
-      if(btnX&&now-gpLastPress>300){gpLastPress=now;if(nameInput.length<12)nameInput+=String.fromCharCode(65+gpLetterIdx);}
-      // Delete
-      if(btnCircle&&now-gpLastPress>300){gpLastPress=now;nameInput=nameInput.slice(0,-1);}
-      // Save
-      if((btnTriangle||btnStart)&&nameInput.length>0&&now-gpLastPress>300){gpLastPress=now;addHS(nameInput,score);enteringName=false;state='dead';}
       break;
     }
     if(state!=='play'){if((state==='dead'||state==='start')&&(gp.start||gp.jump))go();return;}
@@ -320,70 +331,28 @@ function getGlobalScores(){return[];}
 let drawHighscoreY=0;
 function drawHighscoreList(x,y){drawHighscoreY=y;
   const hs=loadHS();
-  const gs=getGlobalScores();
-  const pw=260,ph=360,gap=16;
-  const lx=x-pw-gap/2,rx=x+gap/2;
-  const rowH=28;
-
-  // YOU panel
-  drawPanel(lx,y,pw,ph,'#00ffff');
+  const pw=320,ph=360;
+  const px2=x-pw/2;
+  const rowH=30;
+  drawPanel(px2,y,pw,ph,'#ff00ff');
   cx.textAlign='center';
-  cx.fillStyle='#00ffff';cx.font='bold 15px Share Tech Mono, monospace';
-  cx.fillText('YOU',lx+pw/2,y+14);
-  cx.save();cx.beginPath();cx.rect(lx+2,y+20,pw-4,ph-22);cx.clip();
+  cx.fillStyle='#ff00ff';cx.font='bold 15px Share Tech Mono, monospace';
+  cx.fillText('TRØNDER-IT',x,y+14);
+  cx.save();cx.beginPath();cx.rect(px2+2,y+20,pw-4,ph-22);cx.clip();
   if(!hs.length){
-    cx.fillStyle='rgba(255,255,255,.3)';cx.font='10px Share Tech Mono, monospace';
-    cx.fillText('No scores yet',lx+pw/2,y+36);
+    cx.fillStyle='rgba(255,255,255,.3)';cx.font='12px Share Tech Mono, monospace';
+    cx.fillText('Ingen scores ennå',x,y+50);
   } else {
     hs.slice(0,10).forEach((e,i)=>{
-      cx.fillStyle=i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'rgba(255,255,255,.6)';
+      const ey=y+36+i*rowH;
+      cx.fillStyle=i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'rgba(255,255,255,.65)';
       cx.font=(i<3?'bold ':'')+'13px Share Tech Mono, monospace';
       cx.textAlign='left';
-      const rank=String(i+1).padStart(2,' ')+'.';
-      cx.fillText(rank,lx+8,y+30+i*rowH);
-      cx.fillText(e.name.slice(0,8),lx+28,y+30+i*rowH);
+      cx.fillText(String(i+1).padStart(2,' ')+'.',px2+10,ey);
+      cx.fillText(e.name.slice(0,14),px2+34,ey);
       cx.textAlign='right';
-      cx.fillText(e.score,lx+pw-6,y+30+i*rowH);
+      cx.fillText(e.score,px2+pw-10,ey);
     });
-  }
-  cx.restore();
-
-  // WORLD panel - scrollable
-  drawPanel(rx,y,pw,ph,'#aa00ff');
-  cx.textAlign='center';
-  cx.fillStyle='#aa00ff';cx.font='bold 15px Share Tech Mono, monospace';
-  return; // no world leaderboard in office version
-  cx.save();cx.beginPath();cx.rect(rx+2,y+20,pw-4,ph-22);cx.clip();
-  if(!gs.length){
-    cx.fillStyle='rgba(255,255,255,.3)';cx.font='10px Share Tech Mono, monospace';
-    cx.fillText('Loading...',rx+pw/2,y+36);
-  } else {
-    const maxScroll=Math.max(0,(gs.length*rowH)-(ph-28));
-    worldScrollY=Math.min(worldScrollY,maxScroll);
-    const startIdx=Math.floor(worldScrollY/rowH);
-    const visCount=Math.ceil((ph-22)/rowH)+1;
-    for(let i=0;i<visCount;i++){
-      const idx=startIdx+i;
-      if(idx>=gs.length)break;
-      const ey=y+30+i*rowH-(worldScrollY%rowH);
-      if(ey>y+ph)break;
-      const e=gs[idx];
-      cx.fillStyle=idx===0?'#ffd700':idx===1?'#c0c0c0':idx===2?'#cd7f32':'rgba(255,255,255,.6)';
-      cx.font=(idx<3?'bold ':'')+'13px Share Tech Mono, monospace';
-      cx.textAlign='left';
-      const rank=String(idx+1).padStart(2,' ')+'.';
-      cx.fillText(rank,rx+8,ey);
-      cx.fillText(e.name.slice(0,8),rx+28,ey);
-      cx.textAlign='right';
-      cx.fillText(e.score,rx+pw-14,ey);
-    }
-    if(gs.length*rowH>ph-24){
-      const trackH=ph-24,thumbH=Math.max(16,((ph-24)/(gs.length*rowH))*trackH);
-      const maxSc=Math.max(1,maxScroll);
-      const thumbY=y+20+(worldScrollY/maxSc)*(trackH-thumbH);
-      cx.fillStyle='rgba(170,0,255,.3)';cx.fillRect(rx+pw-7,y+20,5,trackH);
-      cx.fillStyle='#aa00ff';cx.fillRect(rx+pw-7,thumbY,5,thumbH);
-    }
   }
   cx.restore();
   cx.textAlign='left';
@@ -464,29 +433,63 @@ function drawLevelComplete(){
 function drawEnterName(){
   const cx0=W/2;
   drawSpaceBg();
-  drawSpaceRollrLogo(cx0,H*0.22);
+  drawSpaceRollrLogo(cx0,H*0.18);
   const hs=loadHS();const place=hs.filter(function(e){return e.score>score;}).length+1;
   const placeStr=place===1?'🥇 1. PLASS!':place===2?'🥈 2. PLASS!':place===3?'🥉 3. PLASS!':place+'. PLASS!';
-  const pw=280,ph=150,px2=cx0-pw/2,py2=H*0.34;
-  drawPanel(px2,py2,pw,ph,'#ffd700');
   cx.textAlign='center';
-  cx.fillStyle='#ffd700';cx.font='bold 15px Share Tech Mono, monospace';cx.fillText(placeStr,cx0,py2+22);
-  cx.fillStyle='#fff';cx.font='13px Share Tech Mono, monospace';cx.fillText('Score: '+score,cx0,py2+44);
-  cx.fillStyle='rgba(255,255,255,.5)';cx.font='10px Share Tech Mono, monospace';cx.fillText('ENTER YOUR NAME:',cx0,py2+64);
-  drawPanel(px2+20,py2+72,pw-40,34,'#00ffff');
-  cx.fillStyle='#fff';cx.font='bold 15px Share Tech Mono, monospace';cx.fillText(nameInput+'|',cx0,py2+95);
-  // Gamepad letter picker
-  const pads=navigator.getGamepads?navigator.getGamepads():[];
-  let hasGamepad=false;for(const p of pads){if(p){hasGamepad=true;break;}}
-  if(hasGamepad){
-    const letter=String.fromCharCode(65+gpLetterIdx);
-    cx.fillStyle='rgba(255,255,255,.3)';cx.font='11px Share Tech Mono, monospace';cx.textAlign='center';
-    cx.fillText('← '+letter+' →   X=legg til   ○=slett   △=lagre',cx0,py2+115);
-    cx.fillStyle='#00ffff';cx.font='bold 22px Share Tech Mono, monospace';
-    cx.fillText(letter,cx0,py2+140);
-    cx.textAlign='left';
+  cx.fillStyle='#ffd700';cx.font='bold 18px Share Tech Mono, monospace';cx.fillText(placeStr,cx0,H*0.3);
+  cx.fillStyle='rgba(255,255,255,.7)';cx.font='13px Share Tech Mono, monospace';cx.fillText('Score: '+score,cx0,H*0.3+22);
+
+  if(typingCustomName){
+    // Custom name input
+    const pw=300,ph=120,px2=cx0-pw/2,py2=H*0.38;
+    drawPanel(px2,py2,pw,ph,'#00ffff');
+    cx.fillStyle='#00ffff';cx.font='bold 13px Share Tech Mono, monospace';cx.textAlign='center';
+    cx.fillText('SKRIV INN NAVN:',cx0,py2+18);
+    drawPanel(px2+20,py2+30,pw-40,36,'#ffffff');
+    cx.fillStyle='#fff';cx.font='bold 16px Share Tech Mono, monospace';
+    cx.fillText(nameInput+'|',cx0,py2+54);
+    // Gamepad letter picker
+    const pads=navigator.getGamepads?navigator.getGamepads():[];
+    let hasGamepad=false;for(const p of pads){if(p){hasGamepad=true;break;}}
+    if(hasGamepad){
+      const letter=String.fromCharCode(65+gpLetterIdx);
+      cx.fillStyle='rgba(255,255,255,.4)';cx.font='10px Share Tech Mono, monospace';
+      cx.fillText('← '+letter+' →  X=legg til  ○=slett  △=lagre',cx0,py2+82);
+      cx.fillStyle='#00ffff';cx.font='bold 20px Share Tech Mono, monospace';
+      cx.fillText(letter,cx0,py2+102);
+    }
+    cx.fillStyle='rgba(255,255,255,.4)';cx.font='10px Share Tech Mono, monospace';
+    cx.fillText('ENTER = lagre  |  ESC = tilbake',cx0,py2+ph-10);
+  } else {
+    // Name picker list
+    const visCount=7;
+    const itemH=36,listW=300,listH=visCount*itemH+16;
+    const lx=cx0-listW/2,ly=H*0.37;
+    drawPanel(lx,ly,listW,listH,'#ff00ff');
+    cx.fillStyle='#ff00ff';cx.font='bold 12px Share Tech Mono, monospace';cx.textAlign='center';
+    cx.fillText('VELG NAVN',cx0,ly+12);
+    // Scroll so selected is visible
+    const start=Math.max(0,Math.min(namePickerIdx-Math.floor(visCount/2),OFFICE_NAMES.length-visCount));
+    cx.save();cx.beginPath();cx.rect(lx+2,ly+16,listW-4,listH-18);cx.clip();
+    for(let i=0;i<visCount;i++){
+      const idx=start+i;if(idx>=OFFICE_NAMES.length)break;
+      const iy=ly+18+i*itemH;
+      const selected=idx===namePickerIdx;
+      if(selected){
+        cx.fillStyle='rgba(255,0,255,.25)';cx.fillRect(lx+4,iy-2,listW-8,itemH-4);
+        cx.strokeStyle='#ff00ff';cx.lineWidth=1.5;cx.strokeRect(lx+4,iy-2,listW-8,itemH-4);
+      }
+      cx.fillStyle=selected?'#ffffff':OFFICE_NAMES[idx]==='Annet'?'rgba(255,200,0,.7)':'rgba(255,255,255,.65)';
+      cx.font=(selected?'bold ':'')+'14px Share Tech Mono, monospace';
+      cx.textAlign='center';
+      if(selected)cx.fillText('▶ '+OFFICE_NAMES[idx]+' ◀',cx0,iy+itemH/2+5);
+      else cx.fillText(OFFICE_NAMES[idx],cx0,iy+itemH/2+5);
+    }
+    cx.restore();
+    cx.fillStyle='rgba(255,255,255,.35)';cx.font='10px Share Tech Mono, monospace';cx.textAlign='center';
+    cx.fillText('↑↓ = bla  |  ENTER = velg',cx0,ly+listH+16);
   }
-  cx.fillStyle='rgba(255,255,255,.35)';cx.font='10px Share Tech Mono, monospace';cx.fillText('PRESS ENTER TO SAVE',cx0,py2+ph-12);
   cx.textAlign='left';
 }
 

@@ -28,6 +28,8 @@ let camZ,px,pvx,jy,jvy,spd,score,state,hi=0,pts=[],rot=0,currentLevel=0,gameMode
 const OFFICE_NAMES=['Vegar','Lars','Kristian E','Kristian B','Simeon','Ida','Felix','Daniel','Eyerusalem','Tora','Ragnar K','Einar','Kjetil','Annet'];
 let nameInput='',enteringName=false,gpLetterIdx=0,gpLastPress=0,gpLastDir=0;
 let skinMenuIdx=0;
+let hsScrollIdx=0;
+let gpCursor={x:W/2,y:H/2,visible:false};
 
 const SKINS=[
   {name:'Standard', type:'radial', c1:'#aaf5f0',c2:'#00c8c0',c3:'#006f6a'},
@@ -189,6 +191,7 @@ document.addEventListener('keydown',e=>{
   }
 });
 cv.addEventListener('click',(e)=>{handleClick(e);});
+cv.addEventListener('mousemove',()=>{gpCursor.visible=false;});
 
 
 // Scrollbar drag
@@ -225,23 +228,18 @@ document.addEventListener('mousemove',(e)=>{
 document.addEventListener('mouseup',()=>{scrollDragging=false;});
 cv.addEventListener('wheel',(e)=>{
   if(state==='start'||state==='dead'||state==='levelcomplete'){
-    const gs=getGlobalScores();
-    if(gs.length>6){
-      const maxSc=Math.max(0,(gs.length*28)-(360-28));worldScrollY=Math.max(0,Math.min(worldScrollY+e.deltaY*0.5,maxSc));
-      e.preventDefault();
-    }
+    const hs=loadHS();
+    hsScrollIdx=Math.max(0,Math.min(hsScrollIdx+(e.deltaY>0?1:-1),Math.max(0,hs.length-HS_VISIBLE)));
+    e.preventDefault();
   }
 },{passive:false});
 
 
 
-function handleClick(e){
+function handleClickAt(mx,my){
   if(state==='dead'&&!enteringName){go();return;}
   if(state==='levelcomplete'){state='start';menuState='main';return;}
   if(state==='start'){
-    const rect=cv.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(W/rect.width);
-    const my=(e.clientY-rect.top)*(H/rect.height);
     if(menuState==='main'){
       const py2=H*0.28+20;
       if(mx>W/2-110&&mx<W/2+110&&my>py2&&my<py2+56){startMainMode();}
@@ -257,6 +255,12 @@ function handleClick(e){
       if(mx>W/2-50&&mx<W/2+50&&my>H*0.88&&my<H*0.88+32){menuState='main';}
     }
   }
+}
+function handleClick(e){
+  const rect=cv.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(W/rect.width);
+  const my=(e.clientY-rect.top)*(H/rect.height);
+  handleClickAt(mx,my);
 }
 function readGamepad(){const pads=navigator.getGamepads?navigator.getGamepads():[];for(const p of pads){if(p)return{left:p.axes[0]<-0.3||p.buttons[14]?.pressed,right:p.axes[0]>0.3||p.buttons[15]?.pressed,jump:p.buttons[0]?.pressed||p.buttons[1]?.pressed,start:p.buttons[9]?.pressed||p.buttons[8]?.pressed};}return{};}
 let prevT=0;
@@ -294,6 +298,33 @@ function update(t){const gp=readGamepad();
       break;
     }
     if(state!=='play'){if((state==='dead'||state==='start')&&(gp.start||gp.jump))go();return;}
+  }
+  // Virtual cursor + HS scroll for all non-play states
+  if(state!=='play'&&state!=='enter_name'){
+    const now3=Date.now();
+    const pads3=navigator.getGamepads?navigator.getGamepads():[];
+    for(const p of pads3){if(!p)continue;
+      // Right stick moves cursor
+      const rx=p.axes[2]||0,ry=p.axes[3]||0;
+      if(Math.abs(rx)>0.1||Math.abs(ry)>0.1){
+        gpCursor.visible=true;
+        gpCursor.x=Math.max(0,Math.min(W,gpCursor.x+rx*12));
+        gpCursor.y=Math.max(0,Math.min(H,gpCursor.y+ry*12));
+      }
+      // X button = click at cursor
+      if(gpCursor.visible&&p.buttons[0]?.pressed&&now3-gpLastPress>300){
+        gpLastPress=now3;handleClickAt(gpCursor.x,gpCursor.y);
+      }
+      // D-pad up/down scrolls HS list (only on main menu)
+      if(menuState==='main'){
+        const du3=p.buttons[12]?.pressed;const dd3=p.buttons[13]?.pressed;
+        if((du3||dd3)&&now3-gpLastDir>150){gpLastDir=now3;
+          const hs=loadHS();
+          hsScrollIdx=Math.max(0,Math.min(hsScrollIdx+(dd3?1:-1),Math.max(0,hs.length-HS_VISIBLE)));
+        }
+      }
+      break;
+    }
   }
   if(menuState==='skinselect'&&state==='start'){
     const now2=Date.now();
@@ -442,32 +473,44 @@ function drawHUD(){
 
 function getGlobalScores(){return[];}
 let drawHighscoreY=0;
+const HS_VISIBLE=10,HS_ROW=30,HS_PH=HS_VISIBLE*HS_ROW+28;
 function drawHighscoreList(x,y){drawHighscoreY=y;
   const hs=loadHS();
-  const pw=320,ph=630;
+  const pw=320;
   const px2=x-pw/2;
-  const rowH=30;
-  drawPanel(px2,y,pw,ph,'#ff00ff');
+  hsScrollIdx=Math.max(0,Math.min(hsScrollIdx,Math.max(0,hs.length-HS_VISIBLE)));
+  drawPanel(px2,y,pw,HS_PH,'#ff00ff');
   cx.textAlign='center';
   cx.fillStyle='#ff00ff';cx.font='bold 15px Share Tech Mono, monospace';
   cx.fillText('TRØNDER-IT',x,y+14);
-  cx.save();cx.beginPath();cx.rect(px2+2,y+20,pw-4,ph-22);cx.clip();
+  cx.save();cx.beginPath();cx.rect(px2+2,y+20,pw-4,HS_PH-22);cx.clip();
   if(!hs.length){
     cx.fillStyle='rgba(255,255,255,.3)';cx.font='12px Share Tech Mono, monospace';
     cx.fillText('Ingen scores ennå',x,y+50);
   } else {
-    hs.slice(0,20).forEach((e,i)=>{
-      const ey=y+36+i*rowH;
-      cx.fillStyle=i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'rgba(255,255,255,.65)';
-      cx.font=(i<3?'bold ':'')+'13px Share Tech Mono, monospace';
+    hs.slice(hsScrollIdx,hsScrollIdx+HS_VISIBLE).forEach((e,i)=>{
+      const idx=hsScrollIdx+i;
+      const ey=y+36+i*HS_ROW;
+      cx.fillStyle=idx===0?'#ffd700':idx===1?'#c0c0c0':idx===2?'#cd7f32':'rgba(255,255,255,.65)';
+      cx.font=(idx<3?'bold ':'')+'13px Share Tech Mono, monospace';
       cx.textAlign='left';
-      cx.fillText(String(i+1).padStart(2,' ')+'.',px2+10,ey);
+      cx.fillText(String(idx+1).padStart(2,' ')+'.',px2+10,ey);
       cx.fillText(e.name.slice(0,14),px2+34,ey);
       cx.textAlign='right';
-      cx.fillText(e.score,px2+pw-10,ey);
+      cx.fillText(e.score,px2+pw-18,ey);
     });
+    // Scrollbar
+    if(hs.length>HS_VISIBLE){
+      const trackH=HS_PH-26,thumbH=Math.max(20,(HS_VISIBLE/hs.length)*trackH);
+      const thumbY=y+22+(hsScrollIdx/Math.max(1,hs.length-HS_VISIBLE))*(trackH-thumbH);
+      cx.fillStyle='rgba(255,0,255,.2)';cx.fillRect(px2+pw-8,y+22,5,trackH);
+      cx.fillStyle='#ff00ff';cx.fillRect(px2+pw-8,thumbY,5,thumbH);
+    }
   }
   cx.restore();
+  // Scroll arrows
+  if(hsScrollIdx>0){cx.fillStyle='rgba(255,0,255,.8)';cx.font='14px monospace';cx.textAlign='center';cx.fillText('▲',x,y+28);}
+  if(hs.length>hsScrollIdx+HS_VISIBLE){cx.fillStyle='rgba(255,0,255,.8)';cx.font='14px monospace';cx.textAlign='center';cx.fillText('▼',x,y+HS_PH-4);}
   cx.textAlign='left';
 }
 function drawPanel(x,y,w,h,color){
@@ -824,6 +867,16 @@ function loop(t){
       if(menuState==='main')drawStartScreen();
       else if(menuState==='levelselect')drawLevelSelect();
       else if(menuState==='skinselect')drawSkinSelect();
+      // Draw gamepad cursor on top of everything
+      if(gpCursor.visible){
+        const cx0=gpCursor.x,cy0=gpCursor.y,r=10;
+        cx.save();
+        cx.strokeStyle='rgba(255,255,255,0.9)';cx.lineWidth=1.5;
+        cx.beginPath();cx.moveTo(cx0-r,cy0);cx.lineTo(cx0+r,cy0);cx.stroke();
+        cx.beginPath();cx.moveTo(cx0,cy0-r);cx.lineTo(cx0,cy0+r);cx.stroke();
+        cx.beginPath();cx.arc(cx0,cy0,4,0,Math.PI*2);cx.fillStyle='rgba(255,255,255,0.9)';cx.fill();
+        cx.restore();
+      }
     } else {
       drawBg();drawTrack();drawParticles();drawBall();drawHUD();
       if(state==='dead')drawOverlay('GAME OVER',gameMode==='select'?'':'Score: '+score,'');

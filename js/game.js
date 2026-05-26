@@ -262,7 +262,7 @@ function handleClick(e){
   const my=(e.clientY-rect.top)*(H/rect.height);
   handleClickAt(mx,my);
 }
-function readGamepad(){const pads=navigator.getGamepads?navigator.getGamepads():[];for(const p of pads){if(p)return{left:p.axes[0]<-0.3||p.buttons[14]?.pressed,right:p.axes[0]>0.3||p.buttons[15]?.pressed,jump:p.buttons[0]?.pressed||p.buttons[1]?.pressed,start:p.buttons[9]?.pressed||p.buttons[8]?.pressed};}return{};}
+function readGamepad(){const pads=navigator.getGamepads?navigator.getGamepads():[];for(const p of pads){if(p)return{left:p.axes[0]<-0.3||p.buttons[14]?.pressed,right:p.axes[0]>0.3||p.buttons[15]?.pressed,jump:p.buttons[0]?.pressed,start:p.buttons[9]?.pressed||p.buttons[8]?.pressed};}return{};}
 let prevT=0;
 function update(t){const gp=readGamepad();
   if(state==='enter_name'&&enteringName){
@@ -322,6 +322,12 @@ function update(t){const gp=readGamepad();
           const hs=loadHS();
           hsScrollIdx=Math.max(0,Math.min(hsScrollIdx+(dd3?1:-1),Math.max(0,hs.length-HS_VISIBLE)));
         }
+      }
+      // Circle = go back everywhere
+      const circle3=p.buttons[1]?.pressed;
+      if(circle3&&now3-gpLastPress>300){gpLastPress=now3;
+        if(menuState==='skinselect'||menuState==='levelselect'){menuState='main';}
+        else if(state==='dead'||state==='levelcomplete'){stopMusic();state='start';menuState='main';currentLevel=0;}
       }
       break;
     }

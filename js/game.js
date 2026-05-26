@@ -156,7 +156,7 @@ document.addEventListener('keydown',e=>{
   if(enteringName){
     e.preventDefault();
     if(typingCustomName){
-      if(e.key==='Enter'&&nameInput.length>0){addHS(nameInput,score);enteringName=false;typingCustomName=false;state=camZ+PZ>=currentLevelData().length?'levelcomplete':'dead';}
+      if(e.key==='Enter'&&nameInput.length>0){addHS(nameInput,score);enteringName=false;typingCustomName=false;stopMusic();state='start';menuState='main';}
       else if(e.key==='Backspace'){nameInput=nameInput.slice(0,-1);}
       else if(e.key==='Escape'){typingCustomName=false;nameInput='';}
       else if(e.key.length===1&&nameInput.length<12){nameInput+=e.key.toUpperCase();}
@@ -165,7 +165,7 @@ document.addEventListener('keydown',e=>{
       else if(e.key==='ArrowDown'||e.key==='ArrowRight'){namePickerIdx=(namePickerIdx+1)%OFFICE_NAMES.length;}
       else if(e.key==='Enter'){
         if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';}
-        else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state=camZ+PZ>=currentLevelData().length?'levelcomplete':'dead';}
+        else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;stopMusic();state='start';menuState='main';}
       }
     }
     return;
@@ -290,11 +290,11 @@ function update(t){const gp=readGamepad();
         if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)gpLetterIdx=(gpLetterIdx+1)%26;else gpLetterIdx=(gpLetterIdx+25)%26;}
         if(btnX&&now-gpLastPress>300){gpLastPress=now;if(nameInput.length<12)nameInput+=String.fromCharCode(65+gpLetterIdx);}
         if(btnCircle&&now-gpLastPress>300){gpLastPress=now;nameInput=nameInput.slice(0,-1);}
-        if((btnTriangle||btnStart)&&nameInput.length>0&&now-gpLastPress>300){gpLastPress=now;addHS(nameInput,score);enteringName=false;typingCustomName=false;state='dead';}
+        if((btnTriangle||btnStart)&&nameInput.length>0&&now-gpLastPress>300){gpLastPress=now;addHS(nameInput,score);enteringName=false;typingCustomName=false;stopMusic();state='start';menuState='main';}
       } else {
         // Navigate name list
         if((goDown||goUp)&&now-gpLastDir>150){gpLastDir=now;if(goDown)namePickerIdx=(namePickerIdx+1)%OFFICE_NAMES.length;else namePickerIdx=(namePickerIdx-1+OFFICE_NAMES.length)%OFFICE_NAMES.length;}
-        if(btnStart&&now-gpLastPress>300){gpLastPress=now;if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';gpLetterIdx=0;}else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;state='dead';}}
+        if(btnStart&&now-gpLastPress>300){gpLastPress=now;if(OFFICE_NAMES[namePickerIdx]==='Annet'){typingCustomName=true;nameInput='';gpLetterIdx=0;}else{addHS(OFFICE_NAMES[namePickerIdx],score);enteringName=false;stopMusic();state='start';menuState='main';}}
       }
       break;
     }

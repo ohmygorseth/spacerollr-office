@@ -856,9 +856,10 @@ function playFinish(){
 // Music removed in office version
 
 function resizeCanvas(){
+  const MAX_SCALE=1.5; // Cap at 1.5x = 1680x1200 max, keeps Pi fast
   const scaleX=window.innerWidth/W;
   const scaleY=window.innerHeight/H;
-  const scale=Math.min(scaleX,scaleY);
+  const scale=Math.min(scaleX,scaleY,MAX_SCALE);
   cv.style.width=Math.round(W*scale)+'px';
   cv.style.height=Math.round(H*scale)+'px';
 }

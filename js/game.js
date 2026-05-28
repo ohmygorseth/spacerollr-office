@@ -853,13 +853,7 @@ function playFinish(){
   });
 }
 
-// Music system
 // Music removed in office version
-);
-}
-
-
-}
 
 function resizeCanvas(){
   const scaleX=window.innerWidth/W;

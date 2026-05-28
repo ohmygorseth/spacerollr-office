@@ -389,27 +389,7 @@ function drawBg(){
   for(const s of STARS){const sx=cx0+s.x*W/2*zoom*s.speed,sy=cy0+s.y*H/2*zoom*s.speed;if(sx<0||sx>W||sy<0||sy>H)continue;const size=s.size*(0.5+zoom*s.speed*0.3),alpha=Math.min(1,zoom*s.speed*0.4);cx.globalAlpha=alpha;cx.fillStyle=s.col;cx.beginPath();cx.arc(sx,sy,size,0,Math.PI*2);cx.fill();if(spd>7&&size>1){cx.globalAlpha=alpha*0.3;cx.fillRect(sx,sy-size*spd*0.4,size*0.5,size*spd*0.8);}}cx.globalAlpha=1;
 }
 function drawTrack(){
-  const NEON=[['#ff00ff','#cc00cc'],['#00ffff','#00aaaa'],['#aa00ff','#7700bb'],['#ff0099','#bb006f']];
-  // First pass: fills
-  for(let i=VIEW;i>=0;i--){
-    const wz=Math.floor(camZ)+i,df=wz-camZ,db=wz+1-camZ;
-    if(df<.08)continue;
-    const pF=pr(df),pB=pr(db);
-    if(pB.y>H+12||pF.y<HY-4)continue;
-    const row=getRow(wz);if(!row)continue;
-    const twF=pF.hw*2/COLS,twB=pB.hw*2/COLS,fade=Math.min(1,pF.s*1.8);
-    cx.globalAlpha=.3+fade*.5;
-    for(let c=0;c<COLS;c++){
-      if(!row.c[c])continue;
-      const x1f=W/2-pF.hw+c*twF,x2f=x1f+twF,x1b=W/2-pB.hw+c*twB,x2b=x1b+twB;
-      const nc=NEON[(c+Math.floor(wz/6))%NEON.length];
-      cx.beginPath();cx.moveTo(x1f,pF.y);cx.lineTo(x2f,pF.y);cx.lineTo(x2b,pB.y);cx.lineTo(x1b,pB.y);cx.closePath();
-      cx.fillStyle='rgba(10,0,30,.9)';cx.fill();
-      cx.fillStyle=nc[0]+'44';cx.fill();
-    }
-  }
-  cx.globalAlpha=1;
-  // Second pass: strokes batched by color
+  cx.fillStyle='#2244aa';
   for(let i=VIEW;i>=0;i--){
     const wz=Math.floor(camZ)+i,df=wz-camZ,db=wz+1-camZ;
     if(df<.08)continue;
@@ -420,14 +400,7 @@ function drawTrack(){
     for(let c=0;c<COLS;c++){
       if(!row.c[c])continue;
       const x1f=W/2-pF.hw+c*twF,x2f=x1f+twF,x1b=W/2-pB.hw+c*twB,x2b=x1b+twB;
-      const nc=NEON[(c+Math.floor(wz/6))%NEON.length];
-      cx.strokeStyle=nc[0];cx.lineWidth=1.2;
-      cx.beginPath();
-      cx.moveTo(x1f,pF.y);cx.lineTo(x2f,pF.y);
-      cx.moveTo(x1f,pF.y);cx.lineTo(x1b,pB.y);
-      cx.moveTo(x2f,pF.y);cx.lineTo(x2b,pB.y);
-      cx.moveTo(x1b,pB.y);cx.lineTo(x2b,pB.y);
-      cx.stroke();
+      cx.beginPath();cx.moveTo(x1f,pF.y);cx.lineTo(x2f,pF.y);cx.lineTo(x2b,pB.y);cx.lineTo(x1b,pB.y);cx.closePath();cx.fill();
     }
   }
 }

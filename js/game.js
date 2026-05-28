@@ -386,7 +386,15 @@ const bgCtx=bgCanvas.getContext('2d');
 function drawBg(){
   cx.drawImage(bgCanvas,0,0);
   const cx0=W/2,cy0=H/2,zoom=1+((camZ*0.2)%80)/80*1;
-  for(const s of STARS){const sx=cx0+s.x*W/2*zoom*s.speed,sy=cy0+s.y*H/2*zoom*s.speed;if(sx<0||sx>W||sy<0||sy>H)continue;const size=s.size*(0.5+zoom*s.speed*0.3),alpha=Math.min(1,zoom*s.speed*0.4);cx.globalAlpha=alpha;cx.fillStyle=s.col;cx.beginPath();cx.arc(sx,sy,size,0,Math.PI*2);cx.fill();if(spd>7&&size>1){cx.globalAlpha=alpha*0.3;cx.fillRect(sx,sy-size*spd*0.4,size*0.5,size*spd*0.8);}}cx.globalAlpha=1;
+  cx.globalAlpha=0.7;
+  for(const s of STARS){
+    const sx=cx0+s.x*W/2*zoom*s.speed,sy=cy0+s.y*H/2*zoom*s.speed;
+    if(sx<0||sx>W||sy<0||sy>H)continue;
+    const size=Math.max(1,s.size*(0.5+zoom*s.speed*0.3));
+    cx.fillStyle=s.col;
+    cx.fillRect(sx-size,sy-size,size*2,size*2);
+  }
+  cx.globalAlpha=1;
 }
 function drawTrack(){
   cx.fillStyle='#2244aa';
@@ -447,12 +455,12 @@ function drawBall(){
   cx.drawImage(sc,-BR,-BR,BR*2,BR*2);
   cx.restore();
 }
-function drawParticles(){for(const p of pts){cx.beginPath();cx.arc(p.x,p.y,Math.max(1,3*p.life),0,Math.PI*2);cx.fillStyle=p.col+(Math.min(255,(p.life*2*255)|0).toString(16).padStart(2,'0'));cx.fill();}}
+function drawParticles(){cx.globalAlpha=0.7;for(const p of pts){cx.fillStyle=p.col;cx.fillRect(p.x-2,p.y-2,4,4);}cx.globalAlpha=1;}
 function drawHUD(){
   if(gameMode==='select')return;
   cx.textAlign='left';
-  cx.fillStyle='#fff';cx.font='bold 34px Share Tech Mono, monospace';
-  cx.fillText('SCORE '+score,10,38);
+  cx.fillStyle='#fff';cx.font='bold 24px monospace';
+  cx.fillText('SCORE '+score,10,34);
 
   // Speed bar - top left, same size as score
   const barW=280,barH=14,barX=10,barY=72;
@@ -460,8 +468,8 @@ function drawHUD(){
   cx.fillStyle='rgba(255,255,255,.12)';cx.fillRect(barX,barY,barW,barH);
   if(!window._spdGrad){const g=cx.createLinearGradient(barX,0,barX+barW,0);g.addColorStop(0,'#00ffff');g.addColorStop(0.6,'#aa00ff');g.addColorStop(1,'#ff0066');window._spdGrad=g;}
   cx.fillStyle=window._spdGrad;cx.fillRect(barX,barY,barW*speedPct,barH);
-  cx.fillStyle='rgba(255,255,255,.6)';cx.font='bold 22px Share Tech Mono, monospace';
-  cx.fillText('SPD '+spd.toFixed(1),barX,barY-5);
+  cx.fillStyle='rgba(255,255,255,.6)';cx.font='bold 16px monospace';
+  cx.fillText('SPD '+spd.toFixed(1),barX,barY-4);
   cx.textAlign='left';
 }
 

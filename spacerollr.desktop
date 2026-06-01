@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Space Rollr
+Comment=Trønder-IT kontorspill
+Exec=bash -c "cd /home/pi/spacerollr-office && python3 game.py"
+Icon=/home/pi/spacerollr-office/icon.png
+Terminal=false
+Type=Application
+Categories=Game;
+StartupNotify=true

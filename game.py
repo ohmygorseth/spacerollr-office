@@ -86,20 +86,14 @@ def build_skin(skin, size=64):
     cx, cy, r = size//2, size//2, size//2 - 2
 
     if skin['type'] == 'radial':
-        for y in range(size):
-            for x in range(size):
-                dx, dy = x - cx, y - cy
-                dist = math.sqrt(dx*dx + dy*dy)
-                if dist <= r:
-                    t = 1 - dist/r
-                    # Highlight offset
-                    hdx, hdy = x - (cx - r*.28), y - (cy - r*.32)
-                    hdist = math.sqrt(hdx*hdx + hdy*hdy)
-                    if hdist < r*.2:
-                        col = tuple(min(255, int(c + (255-c)*0.45)) for c in skin['c2'])
-                    else:
-                        col = tuple(int(skin['c1'][i]*t + skin['c3'][i]*(1-t)) for i in range(3))
-                    surf.set_at((x, y), (*col, 255))
+        # Gradient from c1 (bright center) to c3 (dark edge)
+        for rad in range(r, 0, -1):
+            t = rad / r
+            col = tuple(min(255, int(skin['c1'][i]*t + skin['c3'][i]*(1-t))) for i in range(3))
+            pygame.draw.circle(surf, col, (cx, cy), rad)
+        # Bright specular highlight
+        pygame.draw.circle(surf, (255,255,255), (cx - int(r*.28), cy - int(r*.32)), int(r*.18))
+        pygame.draw.circle(surf, skin['c1'], (cx - int(r*.28), cy - int(r*.32)), int(r*.12))
 
     elif skin['type'] == 'football':
         pygame.draw.circle(surf, (240,240,240), (cx,cy), r)
@@ -231,6 +225,7 @@ class SpaceRollr:
         pygame.init()
         pygame.display.set_caption("Space Rollr — Trønder-IT")
         self.screen = pygame.display.set_mode((W, H))
+        self.fullscreen = False
         self.clock = pygame.time.Clock()
 
         # Fonts
@@ -242,11 +237,20 @@ class SpaceRollr:
 
         # Build skin surfaces
         pygame.display.flip()  # show window before slow skin build
+        # Show loading screen while building skins
+        loading = pygame.font.SysFont('monospace', 24, bold=True)
+        self.screen.fill((0,0,15))
+        img = loading.render('Laster...', True, (0,200,192))
+        self.screen.blit(img, (W//2 - img.get_width()//2, H//2))
+        pygame.display.flip()
         self.skin_surfs = [build_skin(s, 64) for s in SKINS]
         self.selected_skin = self._load_skin()
+        self._scaled_skin = None
+        self._scaled_skin_idx = -1
 
         # Stars
         self.stars = make_stars(180)
+        self.star_offset = 0.0
 
         # Build static background
         self.bg_surf = self._make_bg()
@@ -305,28 +309,24 @@ class SpaceRollr:
 
     def _make_bg(self):
         surf = pygame.Surface((W, H))
-        # Gradient sky
+        # Deep space gradient - very dark
         for y in range(H):
             t = y / H
-            r = int(0*(1-t) + 10*t)
-            g = int(0*(1-t) + 0*t)
-            b = int(15*(1-t) + 32*t)
+            r = int(0 + 5*t)
+            g = 0
+            b = int(10 + 20*t)
             pygame.draw.line(surf, (r,g,b), (0,y), (W,y))
-        # Nebula blobs
-        for _ in range(3):
-            nb = pygame.Surface((W,H), pygame.SRCALPHA)
-            cx2 = random.randint(W//4, 3*W//4)
-            cy2 = random.randint(H//6, H//2)
-            col = random.choice([(60,0,120),(0,40,120),(80,0,80)])
-            for r2 in range(200, 0, -10):
-                alpha = int(40 * (1 - r2/200))
-                pygame.draw.circle(nb, (*col, alpha), (cx2,cy2), r2)
-            surf.blit(nb, (0,0))
+        # Subtle nebula
+        nb = pygame.Surface((W,H), pygame.SRCALPHA)
+        pygame.draw.circle(nb, (40,0,80,25), (int(W*0.3), int(H*0.3)), 280)
+        pygame.draw.circle(nb, (0,20,80,20), (int(W*0.75), int(H*0.2)), 220)
+        surf.blit(nb, (0,0))
         return surf
 
     # ── Reset ────────────────────────────────────────────────────────────
     def reset(self):
         self.cam_z = 0.0
+        # Don't reset star_offset - keeps starfield continuous
         self.px = 0.0
         self.pvx = 0.0
         self.jy = 0.0
@@ -399,6 +399,7 @@ class SpaceRollr:
             return
 
         self.cam_z += self.spd * dt
+        self.star_offset += self.spd * dt * 0.2
         total_tiles = self.score_offset + int(self.cam_z)
         self.score = total_tiles * 12
 
@@ -471,16 +472,24 @@ class SpaceRollr:
     # ── Draw background ───────────────────────────────────────────────────
     def draw_bg(self):
         self.screen.blit(self.bg_surf, (0,0))
-        # Stars
         cx0, cy0 = W/2, H/2
-        zoom = 1 + ((self.cam_z * 0.2) % 80) / 80
+        # Each star moves outward from center continuously
+        # star_offset drives how far out each star has traveled
         for s in self.stars:
-            sx = cx0 + s['x'] * W/2 * zoom * s['speed']
-            sy = cy0 + s['y'] * H/2 * zoom * s['speed']
+            # Base position scaled by continuous offset - no modulo reset
+            scale = 1.0 + (self.star_offset * s['speed'] * 0.3) % 3.0
+            sx = cx0 + s['x'] * W/2 * scale
+            sy = cy0 + s['y'] * H/2 * scale
             if 0 <= sx < W and 0 <= sy < H:
-                size = max(1, int(s['size'] * (0.5 + zoom * s['speed'] * 0.3)))
-                col = s['col']
+                size = max(1, int(s['size'] * scale * 0.4))
+                alpha = min(1.0, scale * 0.5)
+                col = tuple(int(c * alpha) for c in s['col'])
                 pygame.draw.rect(self.screen, col, (int(sx)-size, int(sy)-size, size*2, size*2))
+                # Trail line toward center when fast
+                if self.spd > 7:
+                    pygame.draw.line(self.screen, col,
+                        (int(sx), int(sy)),
+                        (int(sx - (sx-cx0)*0.15), int(sy - (sy-cy0)*0.15)), 1)
 
     # ── Draw track ────────────────────────────────────────────────────────
     def draw_track(self):
@@ -497,38 +506,37 @@ class SpaceRollr:
             row = get_row(wz, self.track, self.t_base)
             if not row:
                 continue
+
+            # Find leftmost and rightmost solid tile - one big surface
+            first = None
+            last = None
+            for c in range(COLS):
+                if row[c]:
+                    if first is None:
+                        first = c
+                    last = c
+
+            if first is None:
+                continue
+
             twF = pF['hw'] * 2 / COLS
             twB = pB['hw'] * 2 / COLS
-            fade = min(1.0, pF['s'] * 1.8)
-            alpha = int((0.3 + fade * 0.5) * 255)
+            yF, yB = int(pF['y']), int(pB['y'])
+
+            x1f = int(W/2 - pF['hw'] + first * twF)
+            x2f = int(W/2 - pF['hw'] + (last+1) * twF)
+            x1b = int(W/2 - pB['hw'] + first * twB)
+            x2b = int(W/2 - pB['hw'] + (last+1) * twB)
+            pts_poly = [(x1f,yF),(x2f,yF),(x2b,yB),(x1b,yB)]
 
             neon_idx = (int(wz/6)) % len(NEON)
             base_col = NEON[neon_idx]
-            dark_col = (10, 0, 30)
+            tint = tuple(c//4 for c in base_col)
 
-            for c in range(COLS):
-                if not row[c]:
-                    continue
-                x1f = int(W/2 - pF['hw'] + c * twF)
-                x2f = int(W/2 - pF['hw'] + (c+1) * twF)
-                x1b = int(W/2 - pB['hw'] + c * twB)
-                x2b = int(W/2 - pB['hw'] + (c+1) * twB)
-
-                pts_poly = [(x1f, int(pF['y'])), (x2f, int(pF['y'])),
-                            (x2b, int(pB['y'])), (x1b, int(pB['y']))]
-
-                # Dark fill
-                s = pygame.Surface((W, H), pygame.SRCALPHA)
-                pygame.draw.polygon(s, (*dark_col, alpha), pts_poly)
-                # Neon overlay
-                pygame.draw.polygon(s, (*base_col, alpha//3), pts_poly)
-                self.screen.blit(s, (0,0))
-
-                # Edge lines
-                pygame.draw.line(self.screen, base_col, pts_poly[0], pts_poly[1], 1)
-                pygame.draw.line(self.screen, base_col, pts_poly[0], pts_poly[3], 1)
-                pygame.draw.line(self.screen, base_col, pts_poly[1], pts_poly[2], 1)
-                pygame.draw.line(self.screen, base_col, pts_poly[3], pts_poly[2], 1)
+            pygame.draw.polygon(self.screen, (10, 0, 30), pts_poly)
+            pygame.draw.polygon(self.screen, tint, pts_poly)
+            # Full outline around each island
+            pygame.draw.polygon(self.screen, base_col, pts_poly, 1)
 
     # ── Draw ball ─────────────────────────────────────────────────────────
     def draw_ball(self):
@@ -537,28 +545,25 @@ class SpaceRollr:
         gY = int(p_info['y'] - BALL_RADIUS)
         by = int(gY + self.jy)
 
-        # Shadow
-        shadow_surf = pygame.Surface((BALL_RADIUS*2, BALL_RADIUS//2*2), pygame.SRCALPHA)
-        alpha = max(0, int((.4 + self.jy*.003) * 255))
-        pygame.draw.ellipse(shadow_surf, (0,0,0,alpha),
-            (0, 0, BALL_RADIUS*2, BALL_RADIUS//2*2))
-        self.screen.blit(shadow_surf, (bx - BALL_RADIUS, gY - BALL_RADIUS//4))
+        # Shadow ellipse
+        pygame.draw.ellipse(self.screen, (0,0,0),
+            (bx - BALL_RADIUS, gY - BALL_RADIUS//4, BALL_RADIUS*2, BALL_RADIUS//2))
 
-        # Ball with rotation
-        skin = self.skin_surfs[self.selected_skin]
-        scaled = pygame.transform.scale(skin, (BALL_RADIUS*2, BALL_RADIUS*2))
-        rotated = pygame.transform.rotate(scaled, -math.degrees(self.rot))
+        # Cache scaled skin (only rescale when skin changes)
+        if self._scaled_skin_idx != self.selected_skin:
+            self._scaled_skin = pygame.transform.scale(
+                self.skin_surfs[self.selected_skin], (BALL_RADIUS*2, BALL_RADIUS*2))
+            self._scaled_skin_idx = self.selected_skin
+
+        # Rotate cached skin
+        angle = -math.degrees(self.rot) % 360
+        rotated = pygame.transform.rotate(self._scaled_skin, angle)
         rect = rotated.get_rect(center=(bx, by))
         self.screen.blit(rotated, rect)
 
     # ── Draw particles ────────────────────────────────────────────────────
     def draw_particles(self):
-        for p in self.pts:
-            col = p['col']
-            alpha = min(255, int(p['life'] * 2 * 255))
-            s = pygame.Surface((6,6), pygame.SRCALPHA)
-            pygame.draw.circle(s, (*col, alpha), (3,3), 3)
-            self.screen.blit(s, (int(p['x'])-3, int(p['y'])-3))
+        pass  # Particles removed
 
     # ── Draw HUD ──────────────────────────────────────────────────────────
     def draw_hud(self):
@@ -658,10 +663,10 @@ class SpaceRollr:
 
         py2 = int(H*0.28) + 20
         # Play button
-        draw_neon_btn(self.screen, cx2-110, py2, 220, 56, '▶  PLAY GAME',
+        draw_neon_btn(self.screen, cx2-110, py2, 220, 56, 'PLAY GAME',
             (0,255,255), self.font_md, highlight=self.main_menu_idx==0)
         # Skin button
-        draw_neon_btn(self.screen, cx2-110, py2+68, 220, 36, '🎨  VELG SKIN',
+        draw_neon_btn(self.screen, cx2-110, py2+68, 220, 36, 'VELG SKIN',
             (170,0,255), self.font_sm, highlight=self.main_menu_idx==1)
 
         # Highscore
@@ -712,7 +717,7 @@ class SpaceRollr:
         draw_text(self.screen, self.font_xs,
             '↑↓←→ / D-PAD = bla   |   X / OPTIONS = velg   |   ○ = tilbake',
             cx2, int(H*0.88), (180,180,180), center=True)
-        draw_neon_btn(self.screen, cx2-50, int(H*0.91), 100, 30, '← BACK',
+        draw_neon_btn(self.screen, cx2-50, int(H*0.91), 100, 30, 'BACK',
             (150,150,150), self.font_sm)
 
     # ── Draw game over ────────────────────────────────────────────────────
@@ -909,10 +914,45 @@ class SpaceRollr:
                     pygame.quit()
                     sys.exit()
 
-                if event.type == pygame.JOYDEVICEADDED:
+                if hasattr(pygame, 'JOYDEVICEADDED') and event.type == pygame.JOYDEVICEADDED:
                     self._init_joysticks()
 
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mx, my = event.pos
+                    print(f"KLIKK: x={mx} y={my} state={self.state} menu={self.menu_state}")
+                    if self.state == 'start' and self.menu_state == 'main':
+                        py2 = int(H*0.28) + 20
+                        if W//2-110 < mx < W//2+110:
+                            if py2 < my < py2+56:
+                                self.start_game()
+                            elif py2+68 < my < py2+104:
+                                self.skin_menu_idx = self.selected_skin
+                                self.menu_state = 'skinselect'
+                    elif self.state == 'start' and self.menu_state == 'skinselect':
+                        cols = 4
+                        cell_w, cell_h = 240, 110
+                        gx = W//2 - cols*cell_w//2
+                        gy = int(H*0.27)
+                        for i in range(len(SKINS)):
+                            c = i % cols
+                            r2 = i // cols
+                            bx = gx + c*cell_w + 10
+                            by = gy + r2*cell_h + 6
+                            if bx < mx < bx+cell_w-20 and by < my < by+cell_h-12:
+                                self.selected_skin = i
+                                self._save_skin(i)
+                                self.menu_state = 'main'
+                        if W//2-50 < mx < W//2+50 and int(H*0.91) < my < int(H*0.91)+30:
+                            self.menu_state = 'main'
+
                 if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_F11:
+                        self.fullscreen = not self.fullscreen
+                        if self.fullscreen:
+                            self.screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
+                        else:
+                            self.screen = pygame.display.set_mode((W,H))
+
                     # Global escape
                     if event.key == pygame.K_ESCAPE:
                         if self.state == 'play':
@@ -926,15 +966,15 @@ class SpaceRollr:
 
                     # Start screen
                     if self.state == 'start' and self.menu_state == 'main':
-                        if event.key == pygame.K_RETURN:
+                        if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                             if self.main_menu_idx == 0:
                                 self.start_game()
                             else:
                                 self.skin_menu_idx = self.selected_skin
                                 self.menu_state = 'skinselect'
-                        if event.key == pygame.K_UP:
+                        elif event.key == pygame.K_UP:
                             self.main_menu_idx = (self.main_menu_idx-1) % 2
-                        if event.key == pygame.K_DOWN:
+                        elif event.key == pygame.K_DOWN:
                             self.main_menu_idx = (self.main_menu_idx+1) % 2
 
                     # Skin select keyboard
@@ -985,8 +1025,9 @@ class SpaceRollr:
                                     self.state = 'start'
                                     self.menu_state = 'main'
 
-                    # HS scroll with mouse wheel
-                    if event.type == pygame.MOUSEWHEEL:
+
+
+                if hasattr(pygame, 'MOUSEWHEEL') and event.type == pygame.MOUSEWHEEL:
                         hs = load_hs()
                         self.hs_scroll = max(0, min(self.hs_scroll - event.y, max(0, len(hs)-10)))
 

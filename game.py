@@ -160,35 +160,6 @@ def build_skin(skin, size=64):
     result = pygame.Surface((size,size), pygame.SRCALPHA)
     result.blit(surf, (0,0))
     result.blit(clip, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
-
-    # ── 3D sphere shading overlay ──
-    shade = pygame.Surface((size,size), pygame.SRCALPHA)
-    # Radial shadow: darker toward bottom-right edge
-    for rad in range(r, 0, -1):
-        t = rad / r
-        # darkness increases toward edge
-        dark = int(150 * (t ** 2.2))
-        # offset center up-left for light source
-        pygame.draw.circle(shade, (0,0,0,dark),
-            (cx + int(r*0.18), cy + int(r*0.22)), rad)
-    result.blit(shade, (0,0))
-
-    # Specular highlight (top-left)
-    hl = pygame.Surface((size,size), pygame.SRCALPHA)
-    hlx, hly = cx - int(r*0.32), cy - int(r*0.36)
-    for rad in range(int(r*0.45), 0, -1):
-        t = rad / (r*0.45)
-        alpha = int(120 * (1-t))
-        pygame.draw.circle(hl, (255,255,255,alpha), (hlx, hly), rad)
-    result.blit(hl, (0,0))
-    # Small bright spot
-    pygame.draw.circle(result, (255,255,255,200), (hlx, hly), max(2,int(r*0.08)))
-
-    # Re-clip to circle so shading doesn't bleed outside
-    result.blit(clip, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
-
-    # Glowing rim
-    pygame.draw.circle(result, (255,255,255,90), (cx,cy), r, 1)
     return result
 
 # ── Projection ─────────────────────────────────────────────────────────────

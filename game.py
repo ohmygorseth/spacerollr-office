@@ -162,6 +162,86 @@ def build_skin(skin, size=64):
     result.blit(clip, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
     return result
 
+
+def build_texture(skin, tw=96, th=48):
+    """Build a flat (equirectangular) texture for sphere-mapping."""
+    tex = pygame.Surface((tw, th))
+    if skin['type'] == 'radial':
+        tex.fill(skin['c2'])
+    elif skin['type'] == 'football':
+        tex.fill((240,240,240))
+        # Pentagon spots in a grid
+        for gx in range(0, tw, 24):
+            for gy in range(0, th, 24):
+                off = 12 if (gy//24)%2 else 0
+                pygame.draw.circle(tex, (30,30,30), (gx+off, gy+12), 7)
+    elif skin['type'] == 'stripes':
+        for x in range(tw):
+            col = skin['c1'] if (x//8)%2==0 else skin['c2']
+            pygame.draw.line(tex, col, (x,0), (x,th))
+    elif skin['type'] == 'dots':
+        tex.fill(skin['c1'])
+        for gx in range(0, tw, 14):
+            for gy in range(0, th, 14):
+                off = 7 if (gy//14)%2 else 0
+                pygame.draw.circle(tex, skin['c2'], (gx+off, gy+7), 4)
+    elif skin['type'] == 'galaxy':
+        tex.fill((20,0,50))
+        for _ in range(60):
+            x = random.randint(0,tw-1); y = random.randint(0,th-1)
+            v = random.randint(150,255)
+            tex.set_at((x,y), (v,v,v))
+    elif skin['type'] == 'image':
+        try:
+            path = os.path.join(os.path.dirname(__file__), skin['file'])
+            loaded = pygame.image.load(path).convert()
+            tex = pygame.transform.smoothscale(loaded, (tw, th))
+        except:
+            tex.fill((100,100,100))
+    return tex
+
+
+def sphere_frames(skin, size=64, n_frames=16):
+    """Pre-render n_frames of a rolling sphere (rolls forward)."""
+    tex = build_texture(skin)
+    tw, th = tex.get_size()
+    tex.lock()
+    r = size//2 - 2
+    cx = cy = size//2
+    frames = []
+    for f in range(n_frames):
+        roll = (f / n_frames) * 2 * math.pi  # forward roll offset
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        surf.lock()
+        for py in range(size):
+            for px in range(size):
+                dx = px - cx
+                dy = py - cy
+                d2 = dx*dx + dy*dy
+                if d2 > r*r:
+                    continue
+                nz = math.sqrt(max(0, r*r - d2))
+                # 3D point on sphere surface (normalized)
+                nx = dx / r
+                ny = dy / r
+                nzn = nz / r
+                # Roll forward = rotate around X axis by roll
+                ry = ny*math.cos(roll) - nzn*math.sin(roll)
+                rz = ny*math.sin(roll) + nzn*math.cos(roll)
+                # Map to lat/long
+                lon = math.atan2(nx, rz)
+                lat = math.asin(max(-1,min(1,ry)))
+                u = int((lon/(2*math.pi) + 0.5) * tw) % tw
+                v = int((lat/math.pi + 0.5) * th) % th
+                col = tex.get_at((u, v))
+                # Simple shading by depth
+                shade = 0.55 + 0.45 * nzn
+                surf.set_at((px,py), (int(col[0]*shade), int(col[1]*shade), int(col[2]*shade), 255))
+        surf.unlock()
+        frames.append(surf)
+    tex.unlock()
+    return frames
+
 # ── Projection ─────────────────────────────────────────────────────────────
 def pr(d):
     d = max(d, 0.05)
@@ -254,6 +334,16 @@ class SpaceRollr:
         self.screen.blit(img, (W//2 - img.get_width()//2, H//2))
         pygame.display.flip()
         self.skin_surfs = [build_skin(s, 64) for s in SKINS]
+        # Pre-render rolling sphere frames for the ball (scaled to ball size)
+        self.skin_frames = []
+        n_skins = len(SKINS)
+        for si, s in enumerate(SKINS):
+            self.screen.fill((0,0,15))
+            msg = loading.render(f'Bygger kuler... {si+1}/{n_skins}', True, (0,200,192))
+            self.screen.blit(msg, (W//2 - msg.get_width()//2, H//2))
+            pygame.display.flip()
+            frames = sphere_frames(s, size=BALL_RADIUS*2, n_frames=16)
+            self.skin_frames.append(frames)
         self.selected_skin = self._load_skin()
         self._scaled_skin = None
         self._scaled_skin_idx = -1
@@ -539,17 +629,12 @@ class SpaceRollr:
         pygame.draw.ellipse(self.screen, (0,0,0),
             (bx - BALL_RADIUS, gY - BALL_RADIUS//4, BALL_RADIUS*2, BALL_RADIUS//2))
 
-        # Cache scaled skin (only rescale when skin changes)
-        if self._scaled_skin_idx != self.selected_skin:
-            self._scaled_skin = pygame.transform.scale(
-                self.skin_surfs[self.selected_skin], (BALL_RADIUS*2, BALL_RADIUS*2))
-            self._scaled_skin_idx = self.selected_skin
-
-        # Rotate cached skin
-        angle = -math.degrees(self.rot) % 360
-        rotated = pygame.transform.rotate(self._scaled_skin, angle)
-        rect = rotated.get_rect(center=(bx, by))
-        self.screen.blit(rotated, rect)
+        # Pick rolling frame based on distance traveled
+        frames = self.skin_frames[self.selected_skin]
+        n = len(frames)
+        frame_idx = int((self.rot / (2*math.pi)) * n) % n
+        ball_img = frames[frame_idx]
+        self.screen.blit(ball_img, (bx - BALL_RADIUS, by - BALL_RADIUS))
 
     # ── Draw particles ────────────────────────────────────────────────────
     def draw_particles(self):

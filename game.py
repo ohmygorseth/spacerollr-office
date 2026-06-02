@@ -79,6 +79,7 @@ SKINS = [
     {'name': 'Stripete', 'type': 'stripes',  'c1': (255,0,255),   'c2': (0,255,255)},
     {'name': 'Prikker',  'type': 'dots',     'c1': (255,102,0),   'c2': (255,255,0)},
     {'name': 'Galakse',  'type': 'galaxy'},
+    {'name': 'Vegar',    'type': 'image', 'file': 'face_skin.png'},
 ]
 
 def build_skin(skin, size=64):
@@ -143,6 +144,15 @@ def build_skin(skin, size=64):
             v = random.randint(150,255)
             sz = random.randint(1,3)
             pygame.draw.circle(surf, (v,v,v,200), (sx2,sy2), sz)
+
+    elif skin['type'] == 'image':
+        try:
+            path = os.path.join(os.path.dirname(__file__), skin['file'])
+            loaded = pygame.image.load(path).convert_alpha()
+            loaded = pygame.transform.smoothscale(loaded, (size, size))
+            surf.blit(loaded, (0,0))
+        except Exception as e:
+            pygame.draw.circle(surf, (100,100,100,255), (cx,cy), r)
 
     # Clip all to circle
     clip = pygame.Surface((size,size), pygame.SRCALPHA)

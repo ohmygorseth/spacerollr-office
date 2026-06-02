@@ -207,15 +207,15 @@ def draw_neon_btn(surf, x, y, w, h, text, color, font, highlight=False):
     surf.blit(img, (x + w//2 - img.get_width()//2, y + h//2 - img.get_height()//2))
 
 # ── Stars ──────────────────────────────────────────────────────────────────
-def make_stars(n=180):
+def make_stars(n=120):
     stars = []
     for _ in range(n):
         stars.append({
-            'x': (random.random()-.5)*2,
-            'y': (random.random()-.5)*2,
-            'size': random.random()*1.8+0.3,
-            'col': random.choice([(255,255,255),(170,204,255),(204,170,255),(255,238,187)]),
-            'speed': 0.3+random.random()*0.7,
+            'x': random.random()*W,
+            'y': random.random()*H,
+            'size': random.randint(1,2),
+            'col': random.choice([(255,255,255),(200,220,255),(220,200,255),(255,240,200)]),
+            'drift': 8 + random.random()*20,  # slow downward drift speed (px/s)
         })
     return stars
 
@@ -399,7 +399,6 @@ class SpaceRollr:
             return
 
         self.cam_z += self.spd * dt
-        self.star_offset += self.spd * dt * 0.2
         total_tiles = self.score_offset + int(self.cam_z)
         self.score = total_tiles * 12
 
@@ -470,26 +469,18 @@ class SpaceRollr:
             self.track, self.t_base = grow_track(0, self.track, self.t_base, self.level_data)
 
     # ── Draw background ───────────────────────────────────────────────────
+    def update_stars(self, dt):
+        for s in self.stars:
+            s['y'] += s['drift'] * dt
+            if s['y'] > H:
+                s['y'] = 0
+                s['x'] = random.random()*W
+
     def draw_bg(self):
         self.screen.blit(self.bg_surf, (0,0))
-        cx0, cy0 = W/2, H/2
-        # Each star moves outward from center continuously
-        # star_offset drives how far out each star has traveled
         for s in self.stars:
-            # Base position scaled by continuous offset - no modulo reset
-            scale = 1.0 + (self.star_offset * s['speed'] * 0.3) % 3.0
-            sx = cx0 + s['x'] * W/2 * scale
-            sy = cy0 + s['y'] * H/2 * scale
-            if 0 <= sx < W and 0 <= sy < H:
-                size = max(1, int(s['size'] * scale * 0.4))
-                alpha = min(1.0, scale * 0.5)
-                col = tuple(int(c * alpha) for c in s['col'])
-                pygame.draw.rect(self.screen, col, (int(sx)-size, int(sy)-size, size*2, size*2))
-                # Trail line toward center when fast
-                if self.spd > 7:
-                    pygame.draw.line(self.screen, col,
-                        (int(sx), int(sy)),
-                        (int(sx - (sx-cx0)*0.15), int(sy - (sy-cy0)*0.15)), 1)
+            pygame.draw.rect(self.screen, s['col'],
+                (int(s['x']), int(s['y']), s['size'], s['size']))
 
     # ── Draw track ────────────────────────────────────────────────────────
     def draw_track(self):
@@ -1025,6 +1016,7 @@ class SpaceRollr:
                 self.handle_menu_gp(gp)
 
             # ── Update ──────────────────────────────────────────────────
+            self.update_stars(dt)
             self.update(dt, keys, gp)
 
             # ── Draw ────────────────────────────────────────────────────

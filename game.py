@@ -398,7 +398,10 @@ class SpaceRollr:
     def _load_skin(self):
         try:
             with open(os.path.join(os.path.dirname(__file__), 'skin.dat')) as f:
-                return int(f.read().strip())
+                idx = int(f.read().strip())
+                if 0 <= idx < len(SKINS):
+                    return idx
+                return 0
         except:
             return 0
 

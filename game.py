@@ -737,7 +737,7 @@ class SpaceRollr:
 
         hs = load_hs()
         place = sum(1 for e in hs if e['score'] > self.score) + 1
-        medals = {1:'🥇 1. PLASS!', 2:'🥈 2. PLASS!', 3:'🥉 3. PLASS!'}
+        medals = {1:'1. PLASS!', 2:'2. PLASS!', 3:'3. PLASS!'}
         place_str = medals.get(place, f'{place}. PLASS!')
         draw_text(self.screen, self.font_md, place_str, cx2, int(H*0.28), (255,215,0), center=True)
         draw_text(self.screen, self.font_sm, f'Score: {self.score}', cx2, int(H*0.28)+28, (200,200,200), center=True)

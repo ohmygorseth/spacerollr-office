@@ -79,7 +79,6 @@ SKINS = [
     {'name': 'Stripete', 'type': 'stripes',  'c1': (255,0,255),   'c2': (0,255,255)},
     {'name': 'Prikker',  'type': 'dots',     'c1': (255,102,0),   'c2': (255,255,0)},
     {'name': 'Galakse',  'type': 'galaxy'},
-    {'name': 'Vegar',    'type': 'image', 'file': 'face_skin.png'},
 ]
 
 def build_skin(skin, size=64):
@@ -337,11 +336,11 @@ class SpaceRollr:
         # Pre-render rolling sphere frames for the ball (scaled to ball size)
         self.skin_frames = []
         n_skins = len(SKINS)
+        self.screen.fill((0,0,15))
+        msg = loading.render('Loading...', True, (0,200,192))
+        self.screen.blit(msg, (W//2 - msg.get_width()//2, H//2))
+        pygame.display.flip()
         for si, s in enumerate(SKINS):
-            self.screen.fill((0,0,15))
-            msg = loading.render(f'Bygger kuler... {si+1}/{n_skins}', True, (0,200,192))
-            self.screen.blit(msg, (W//2 - msg.get_width()//2, H//2))
-            pygame.display.flip()
             frames = sphere_frames(s, size=BALL_RADIUS*2, n_frames=16)
             self.skin_frames.append(frames)
         self.selected_skin = self._load_skin()

@@ -507,36 +507,25 @@ class SpaceRollr:
             if not row:
                 continue
 
-            # Find leftmost and rightmost solid tile - one big surface
-            first = None
-            last = None
-            for c in range(COLS):
-                if row[c]:
-                    if first is None:
-                        first = c
-                    last = c
-
-            if first is None:
-                continue
-
             twF = pF['hw'] * 2 / COLS
             twB = pB['hw'] * 2 / COLS
             yF, yB = int(pF['y']), int(pB['y'])
-
-            x1f = int(W/2 - pF['hw'] + first * twF)
-            x2f = int(W/2 - pF['hw'] + (last+1) * twF)
-            x1b = int(W/2 - pB['hw'] + first * twB)
-            x2b = int(W/2 - pB['hw'] + (last+1) * twB)
-            pts_poly = [(x1f,yF),(x2f,yF),(x2b,yB),(x1b,yB)]
-
             neon_idx = (int(wz/6)) % len(NEON)
             base_col = NEON[neon_idx]
             tint = tuple(c//4 for c in base_col)
 
-            pygame.draw.polygon(self.screen, (10, 0, 30), pts_poly)
-            pygame.draw.polygon(self.screen, tint, pts_poly)
-            # Full outline around each island
-            pygame.draw.polygon(self.screen, base_col, pts_poly, 1)
+            # Draw each tile individually with full outline
+            for c in range(COLS):
+                if not row[c]:
+                    continue
+                x1f = int(W/2 - pF['hw'] + c * twF)
+                x2f = int(W/2 - pF['hw'] + (c+1) * twF)
+                x1b = int(W/2 - pB['hw'] + c * twB)
+                x2b = int(W/2 - pB['hw'] + (c+1) * twB)
+                pts_poly = [(x1f,yF),(x2f,yF),(x2b,yB),(x1b,yB)]
+                pygame.draw.polygon(self.screen, (10, 0, 30), pts_poly)
+                pygame.draw.polygon(self.screen, tint, pts_poly)
+                pygame.draw.polygon(self.screen, base_col, pts_poly, 1)
 
     # ── Draw ball ─────────────────────────────────────────────────────────
     def draw_ball(self):

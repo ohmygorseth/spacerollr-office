@@ -20,8 +20,8 @@ GRAVITY      = 680
 BASE_SPEED   = 5
 MAX_SPEED    = 11
 SPEED_GROWTH = 0.0756
-LATERAL_SPEED= 6.0
-LATERAL_DRAG = 8.0
+LATERAL_SPEED= 3.2
+LATERAL_DRAG = 9.0
 FPS          = 60
 
 SAVE_FILE    = os.path.join(os.path.dirname(__file__), 'scores.json')

@@ -60,10 +60,62 @@ def add_hs(name, score):
     hs.sort(key=lambda x: -x['score'])
     hs = hs[:20]
     save_hs(hs)
+    submit_world_score(name, score)  # Also push to global leaderboard
 
 def is_highscore(score):
     hs = load_hs()
     return len(hs) < 20 or score > hs[-1]['score']
+
+# ── Firebase World Leaderboard ─────────────────────────────────────────────
+import threading
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+FIREBASE_URL = "https://space-rollr-default-rtdb.europe-west1.firebasedatabase.app"
+_world_cache = []
+
+def fetch_world_scores():
+    """Fetch top scores from Firebase (runs in background thread)."""
+    global _world_cache
+    if not HAS_REQUESTS:
+        return
+    try:
+        r = requests.get(FIREBASE_URL + "/scores.json", timeout=5)
+        data = r.json()
+        if data:
+            scores = list(data.values())
+            scores.sort(key=lambda x: -x.get('score', 0))
+            _world_cache = scores[:100]
+    except Exception:
+        pass
+
+def submit_world_score(name, score):
+    """Push a score to Firebase (runs in background thread)."""
+    if not HAS_REQUESTS:
+        return
+    def _push():
+        try:
+            requests.post(FIREBASE_URL + "/scores.json",
+                json={'name': name[:14], 'score': score, 'ts': int(time.time()*1000)},
+                timeout=5)
+            fetch_world_scores()
+        except Exception:
+            pass
+    threading.Thread(target=_push, daemon=True).start()
+
+def start_world_refresh():
+    """Background thread that refreshes world scores periodically."""
+    def _loop():
+        while True:
+            fetch_world_scores()
+            time.sleep(15)
+    threading.Thread(target=_loop, daemon=True).start()
+
+def get_world_scores():
+    return _world_cache
 
 # ── Skin builder ───────────────────────────────────────────────────────────
 SKINS = [
@@ -344,6 +396,7 @@ class SpaceRollr:
             frames = sphere_frames(s, size=BALL_RADIUS*2, n_frames=16)
             self.skin_frames.append(frames)
         self.selected_skin = self._load_skin()
+        start_world_refresh()  # Begin fetching world leaderboard
         self._scaled_skin = None
         self._scaled_skin_idx = -1
 
@@ -368,6 +421,7 @@ class SpaceRollr:
         self.main_menu_idx = 0     # 0=play, 1=skins
         self.skin_menu_idx = self.selected_skin
         self.hs_scroll = 0
+        self.world_scroll = 0
 
         # Name entry
         self.name_picker_idx = 0
@@ -668,24 +722,23 @@ class SpaceRollr:
                 (255,200,0), center=True)
 
     # ── Draw highscore panel ──────────────────────────────────────────────
-    def draw_hs_panel(self, x, y):
-        hs = load_hs()
-        pw, row_h = 320, 30
+    def _draw_one_panel(self, scores, x, y, pw, title, color, scroll):
+        row_h = 30
         visible = 10
         ph = visible * row_h + 28
         px2 = x - pw//2
-        self.hs_scroll = max(0, min(self.hs_scroll, max(0, len(hs)-visible)))
+        scroll = max(0, min(scroll, max(0, len(scores)-visible)))
 
-        draw_panel(self.screen, px2, y, pw, ph, (255,0,255))
-        title = self.font_md.render('TRØNDER-IT', True, (255,0,255))
-        self.screen.blit(title, (x - title.get_width()//2, y+6))
+        draw_panel(self.screen, px2, y, pw, ph, color)
+        t_img = self.font_md.render(title, True, color)
+        self.screen.blit(t_img, (x - t_img.get_width()//2, y+6))
 
-        if not hs:
-            msg = self.font_sm.render('Ingen scores ennå', True, (255,255,255,80))
+        if not scores:
+            msg = self.font_sm.render('Ingen scores ennå', True, (160,160,160))
             self.screen.blit(msg, (x - msg.get_width()//2, y+50))
         else:
-            for i, entry in enumerate(hs[self.hs_scroll:self.hs_scroll+visible]):
-                idx = self.hs_scroll + i
+            for i, entry in enumerate(scores[scroll:scroll+visible]):
+                idx = scroll + i
                 ey = y + 36 + i * row_h
                 if idx == 0:   col = (255,215,0)
                 elif idx == 1: col = (192,192,192)
@@ -694,25 +747,29 @@ class SpaceRollr:
                 bold = idx < 3
                 f = pygame.font.SysFont('monospace', 13, bold=bold)
                 rank_img = f.render(f'{idx+1:2}.', True, col)
-                name_img = f.render(entry['name'][:14], True, col)
-                score_img = f.render(str(entry['score']), True, col)
-                self.screen.blit(rank_img, (px2+10, ey))
-                self.screen.blit(name_img, (px2+34, ey))
-                self.screen.blit(score_img, (px2+pw-10-score_img.get_width(), ey))
-
-            # Scrollbar
-            if len(hs) > visible:
+                name_img = f.render(str(entry.get('name',''))[:12], True, col)
+                score_img = f.render(str(entry.get('score',0)), True, col)
+                self.screen.blit(rank_img, (px2+8, ey))
+                self.screen.blit(name_img, (px2+30, ey))
+                self.screen.blit(score_img, (px2+pw-8-score_img.get_width(), ey))
+            if len(scores) > visible:
                 track_h = ph - 26
-                thumb_h = max(20, int((visible/len(hs))*track_h))
-                thumb_y = y+22 + int((self.hs_scroll/max(1,len(hs)-visible))*(track_h-thumb_h))
-                pygame.draw.rect(self.screen, (80,0,80), (px2+pw-8, y+22, 5, track_h))
-                pygame.draw.rect(self.screen, (255,0,255), (px2+pw-8, thumb_y, 5, thumb_h))
+                thumb_h = max(20, int((visible/len(scores))*track_h))
+                thumb_y = y+22 + int((scroll/max(1,len(scores)-visible))*(track_h-thumb_h))
+                dark = tuple(c//3 for c in color)
+                pygame.draw.rect(self.screen, dark, (px2+pw-6, y+22, 4, track_h))
+                pygame.draw.rect(self.screen, color, (px2+pw-6, thumb_y, 4, thumb_h))
+        return scroll
 
-        # Arrows
-        if self.hs_scroll > 0:
-            draw_text(self.screen, self.font_sm, '▲', x, y+24, (255,0,255), center=True)
-        if len(hs) > self.hs_scroll + visible:
-            draw_text(self.screen, self.font_sm, '▼', x, y+ph-12, (255,0,255), center=True)
+    def draw_hs_panel(self, x, y):
+        hs = load_hs()
+        world = get_world_scores()
+        pw = 300
+        gap = 20
+        lx = x - pw//2 - gap//2
+        rx = x + pw//2 + gap//2
+        self.hs_scroll = self._draw_one_panel(hs, lx, y, pw, 'TRØNDER-IT', (255,0,255), self.hs_scroll)
+        self._draw_one_panel(world, rx, y, pw, 'WORLD TOP 100', (170,0,255), self.world_scroll)
 
     # ── Draw logo ─────────────────────────────────────────────────────────
     def draw_logo(self, cx2, y):

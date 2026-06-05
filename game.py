@@ -517,9 +517,11 @@ class SpaceRollr:
             'down':   ax(1) >  0.3 or hat_y() < 0,
             'jump':   btn(0),            # X / Cross
             'circle': btn(1),            # Circle
-            'options':btn(9) or btn(7),  # Options/Start
+            'options':btn(9),  # Options/Start
             'l1':     btn(4),
             'r1':     btn(5),
+            'l2':     btn(6) or (ax(4) > 0.3 if len(axes) > 4 else False),
+            'r2':     btn(7) or (ax(5) > 0.3 if len(axes) > 5 else False),
             'ax0':    ax(0),
             'ax1':    ax(1),
         }
@@ -992,6 +994,13 @@ class SpaceRollr:
             if gp.get('l1') and now - self.gp_last_dir > 120:
                 self.gp_last_dir = now
                 self.hs_scroll = max(0, self.hs_scroll-1)
+            if gp.get('r2') and now - self.gp_last_dir > 120:
+                self.gp_last_dir = now
+                world = get_world_scores()
+                self.world_scroll = min(self.world_scroll+1, max(0, len(world)-10))
+            if gp.get('l2') and now - self.gp_last_dir > 120:
+                self.gp_last_dir = now
+                self.world_scroll = max(0, self.world_scroll-1)
 
         elif self.menu_state == 'skinselect':
             cols = 4
@@ -1162,8 +1171,13 @@ class SpaceRollr:
 
 
                 if hasattr(pygame, 'MOUSEWHEEL') and event.type == pygame.MOUSEWHEEL:
-                        hs = load_hs()
-                        self.hs_scroll = max(0, min(self.hs_scroll - event.y, max(0, len(hs)-10)))
+                        mx, my = pygame.mouse.get_pos()
+                        if mx < W//2:
+                            hs = load_hs()
+                            self.hs_scroll = max(0, min(self.hs_scroll - event.y, max(0, len(hs)-10)))
+                        else:
+                            world = get_world_scores()
+                            self.world_scroll = max(0, min(self.world_scroll - event.y, max(0, len(world)-10)))
 
             # ── Gamepad menu ────────────────────────────────────────────
             if self.state != 'play':

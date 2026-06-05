@@ -1060,9 +1060,19 @@ class SpaceRollr:
                 if hasattr(pygame, 'JOYDEVICEADDED') and event.type == pygame.JOYDEVICEADDED:
                     self._init_joysticks()
 
+                # Mouse wheel scroll (works in pygame 1.9.6 via button 4/5)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button in (4,5):
+                    mx, my = event.pos
+                    direction = -1 if event.button == 4 else 1
+                    if mx < W//2:
+                        hs = load_hs()
+                        self.hs_scroll = max(0, min(self.hs_scroll + direction, max(0, len(hs)-10)))
+                    else:
+                        world = get_world_scores()
+                        self.world_scroll = max(0, min(self.world_scroll + direction, max(0, len(world)-10)))
+
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mx, my = event.pos
-                    print(f"KLIKK: x={mx} y={my} state={self.state} menu={self.menu_state}")
                     if self.state == 'start' and self.menu_state == 'main':
                         py2 = int(H*0.28) + 20
                         if W//2-110 < mx < W//2+110:
